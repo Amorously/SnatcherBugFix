@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36408.4
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SnatcherBugFix", "SnatcherBugFix\SnatcherBugFix.csproj", "{84941D65-D479-4BDD-8CF7-A41B7B51B3FF}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{84941D65-D479-4BDD-8CF7-A41B7B51B3FF}.Debug|Any CPU.ActiveCfg = Debug|x64
+		{84941D65-D479-4BDD-8CF7-A41B7B51B3FF}.Debug|Any CPU.Build.0 = Debug|x64
+		{84941D65-D479-4BDD-8CF7-A41B7B51B3FF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{84941D65-D479-4BDD-8CF7-A41B7B51B3FF}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {B25ADAC7-760C-4D8A-A4EB-AAAD504C8C8C}
+	EndGlobalSection
+EndGlobal
