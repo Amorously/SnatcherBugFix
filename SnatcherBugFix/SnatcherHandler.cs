@@ -9,20 +9,23 @@ namespace SnatcherBugFix;
 
 public class SnatcherHandler : MonoBehaviour
 {
-    public PlayerAgent Player;
-    public DelayedCallback UncoverCallback, UnwarpCallback;
+    public PlayerAgent Player = null!;
+    public EnemyAgent? Captor;
+    public DelayedCallback? UncoverCallback, UnwarpCallback;
     public eDimensionIndex LastDimension;
     public Vector3 LastPosition;
+    private bool _warpFlag;
+
+    public eDimensionIndex GoodDimension => Captor?.DimensionIndex ?? LastDimension;
+    public Vector3 GoodPosition => Captor?.Position ?? LastPosition;
+    public bool IsInArenaDim => Player?.Dimension?.IsArenaDimension ?? false;
 
     public void Awake()
     {
         Player = GetComponent<PlayerAgent>();
         UncoverCallback = new(() => 2.5f, () => UncoverScreen());
         UnwarpCallback = new(() => 8.0f, () => ArenaUnwarp());
-    }
-
-    public void OnEnable()
-    {
+        
         if (!Builder.CurrentFloor.m_dimensions.ToManaged().Any(dim => dim.IsArenaDimension))
         {
             Logger.Error("No arena dimension present in level!!");
@@ -32,40 +35,50 @@ public class SnatcherHandler : MonoBehaviour
         Logger.Debug("SnatcherHandler is setup and enabled");
     }
 
+    public void FixedUpdate()
+    {
+        if (Player == null) return;
+        if (IsInArenaDim)
+        {
+            if (!_warpFlag)
+            {
+                _warpFlag = true;
+                UnwarpCallback?.Start();
+            }
+            return;
+        }
+        LastDimension = Player.DimensionIndex;
+        LastPosition = Player.Position;
+        _warpFlag = false;
+    }
+    
+    public void OnDestroy()
+    {
+        UncoverCallback?.Cancel();
+        UnwarpCallback?.Cancel();
+    }   
+
     public void OnConsumed(EnemyAgent pouncer)
     {
-        Logger.Debug("SnatcherHandler OnConsumed");
-
-        Vector3 pos = pouncer.Position;
-        if (pos != Vector3.zero)
-        {
-            LastPosition = pos;
-            LastDimension = Dimension.GetDimensionFromPos(pos).DimensionIndex;
-        }
-
-        UncoverCallback.Start();
-        UnwarpCallback.Start();
+        Logger.Debug($"SnatcherHandler OnConsumed, Enemy {pouncer.GetInstanceID()}");
+        Captor = pouncer;        
+        UncoverCallback?.Start();
+        UnwarpCallback?.Start();
     }
-
+        
     public void OnSpitOut(EnemyAgent pouncer)
     {
+        if (Captor == null || Captor.GetInstanceID() != pouncer.GetInstanceID()) return;
         Logger.Debug("SnatcherHandler OnSpitOut (dead)");
-
-        Vector3 pos = pouncer.Position;
-        if (pos != Vector3.zero)
-        {
-            LastPosition = pos;
-            LastDimension = Dimension.GetDimensionFromPos(pos).DimensionIndex;
-        }
-
-        UncoverCallback.Stop();
-        UnwarpCallback.Stop();
+        UncoverCallback?.Stop();
+        UnwarpCallback?.Stop();
+        Captor = null;
     }
 
     public void UncoverScreen()
     {
         if (!Player.FPSCamera.PouncerScreenFX.covered) return;
-        else if (Player.DimensionIndex < eDimensionIndex.Dimension_17)
+        else if (!IsInArenaDim)
         {
             Player.FPSCamera.PouncerScreenFX.SetCovered(false);
             Logger.Warn("Force uncovering local player's screen");
@@ -75,11 +88,19 @@ public class SnatcherHandler : MonoBehaviour
 
     public void ArenaUnwarp()
     {
-        if (Player.DimensionIndex >= eDimensionIndex.Dimension_17)
+        if (!IsInArenaDim)
         {
-            Player.RequestWarpToSync(LastDimension, LastPosition, Player.FPSCamera.CameraRayDir, PlayerAgent.WarpOptions.None);
-            Logger.Warn("Force teleporting local player out from arena dimension");
-        }
-        else UnwarpCallback?.Start();
+            _warpFlag = false;
+            return;
+        }        
+        Player.RequestWarpToSync(GoodDimension, GoodPosition, Player.FPSCamera.CameraRayDir, PlayerAgent.WarpOptions.None);
+        Logger.Warn("Force teleporting local player out from arena dimension");
+    }
+
+    public void DelayedCallbackDebug(float uncoverTime, float unwarpTime)
+    {
+        UncoverCallback = new(() => uncoverTime, () => UncoverScreen());
+        UnwarpCallback = new(() => unwarpTime, () => ArenaUnwarp());
+        Logger.Warn("Changed delayed callbacks");
     }
 }

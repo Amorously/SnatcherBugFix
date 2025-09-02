@@ -4,8 +4,7 @@ using UnityEngine;
 
 namespace SnatcherBugFix.Utils;
 
-// from Dinorush's EWC
-public sealed class DelayedCallback
+public sealed class DelayedCallback // Credits: from Dinorush's EWC
 {
     private readonly Func<float> _getDelay;
     private readonly Action? _onEnd;
