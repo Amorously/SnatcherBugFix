@@ -28,16 +28,18 @@ public class SnatcherHandler : MonoBehaviour
         
         if (!Builder.CurrentFloor.m_dimensions.ToManaged().Any(dim => dim.IsArenaDimension))
         {
-            Logger.Error("No arena dimension present in level!!");
+            Logger.Error("No arena dimension present in level");
             enabled = false;
             return;
         }
         Logger.Debug("SnatcherHandler is setup and enabled");
     }
 
-    public void FixedUpdate()
+    public void Update()
     {
+        if (GameStateManager.CurrentStateName != eGameStateName.InLevel) return;
         if (Player == null) return;
+
         if (IsInArenaDim)
         {
             if (!_warpFlag)
@@ -47,6 +49,7 @@ public class SnatcherHandler : MonoBehaviour
             }
             return;
         }
+
         LastDimension = Player.DimensionIndex;
         LastPosition = Player.Position;
         _warpFlag = false;

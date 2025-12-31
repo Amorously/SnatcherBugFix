@@ -13,11 +13,15 @@ namespace SnatcherBugFix;
 [HarmonyPatch]
 internal static class SnatcherPatches // auri ur epic
 {
-    private static SnatcherHandler? _handler;
+    private static SnatcherHandler? _handler = null;
+    private static bool _prepared = false; // idfk why but harmony wouldn't load the cctor so whatever ig
 
-    static SnatcherPatches()
+    [HarmonyPrepare]
+    private static void Prepare()
     {
+        if (_prepared) return;
         LevelAPI.OnEnterLevel += OnEnterLevel;
+        _prepared = true;
     }
 
     private static void OnEnterLevel()
@@ -27,39 +31,40 @@ internal static class SnatcherPatches // auri ur epic
         if (!_handler.enabled) _handler = null;
     }
 
-    [HarmonyPatch(typeof(EnemyAgent), nameof(EnemyAgent.Setup))]
-    [HarmonyPrefix]
+    [HarmonyPatch(typeof(EnemySync), nameof(EnemySync.OnSpawn))]
+    [HarmonyPostfix]
     [HarmonyPriority(Priority.High)]
-    private static void Pre_EnemySetup(EnemyAgent __instance)
+    [HarmonyWrapSafe]
+    private static void Post_OnSpawn(EnemySync __instance)
     {
-        if (!__instance.IsSetup) return;
-
-        if (__instance.IsArenaDimensionEnemy)
-        {
-            __instance.AddOnDeadOnce(() => _handler?.OnSpitOut(__instance)); // force spit out captured player on death
-        }
-        if (SNet.IsMaster && __instance.Dimension.IsArenaDimension)
-        {
-            __instance.StartCoroutine(DespawnFromArena(__instance)); // host despawn enemies in arena dim
-        }
+        var enemy = __instance.m_agent;
+        if (!enemy.IsSetup)
+            return;
+        if (enemy.IsArenaDimensionEnemy)
+            enemy.AddOnDeadOnce(() => _handler?.OnSpitOut(enemy)); // force spit out captured player on death
+        if (SNet.IsMaster && enemy.Dimension.IsArenaDimension)
+            enemy.StartCoroutine(DespawnFromArena(enemy)); // host despawn enemies in arena dim
     }
 
     private static IEnumerator DespawnFromArena(EnemyAgent enemy)
     {
-        yield return new WaitForSeconds(2.0f);
+        yield return new WaitForSeconds(0.75f);
         enemy.m_replicator.Despawn();
     }
 
     [HarmonyPatch(typeof(PouncerBehaviour), nameof(PouncerBehaviour.RequestConsume))]
     [HarmonyPatch(typeof(PouncerBehaviour), nameof(PouncerBehaviour.OnConsumeRequestReceived))]
     [HarmonyPostfix]
+    [HarmonyWrapSafe]
     private static void Post_Consume(PouncerBehaviour __instance)
     {
-        _handler?.OnConsumed(__instance.GetComponentInParent<EnemyAgent>());
+        if (__instance.CapturedPlayer?.IsLocallyOwned == true)
+            _handler?.OnConsumed(__instance.GetComponentInParent<EnemyAgent>());
     }
 
     [HarmonyPatch(typeof(PouncerScreenFX), nameof(PouncerScreenFX.SetCovered), new Type[] { typeof(bool) })]
     [HarmonyPrefix]
+    [HarmonyWrapSafe]
     private static void Pre_CoverScreen()
     {
         FocusStateManager.ChangeState(eFocusState.FPS, true); // force exit menu pages
@@ -67,6 +72,7 @@ internal static class SnatcherPatches // auri ur epic
 
     [HarmonyPatch(typeof(PouncerScreenFX), nameof(PouncerScreenFX.SetCovered), new Type[] { typeof(bool) })]
     [HarmonyPostfix]
+    [HarmonyWrapSafe]
     private static void Post_CoverScreen(bool value)
     {
         if (!value) return;
