@@ -5,7 +5,7 @@ using Il2CppInterop.Runtime.Injection;
 
 namespace SnatcherBugFix;
 
-[BepInPlugin("Amor.SnatcherBugFix", "SnatcherBugFix", "0.4.2")]
+[BepInPlugin("Amor.SnatcherBugFix", "SnatcherBugFix", "0.4.3")]
 [BepInDependency("dev.gtfomodding.gtfo-api", BepInDependency.DependencyFlags.HardDependency)]
 internal sealed class EntryPoint : BasePlugin
 {

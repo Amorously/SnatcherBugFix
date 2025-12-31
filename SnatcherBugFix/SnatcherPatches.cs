@@ -31,11 +31,20 @@ internal static class SnatcherPatches // auri ur epic
         if (!_handler.enabled) _handler = null;
     }
 
+    [HarmonyPatch(typeof(SurvivalWave), nameof(SurvivalWave.OnSpawn))]
+    [HarmonyPostfix]
+    [HarmonyWrapSafe]
+    private static void Post_Wave_OnSpawn(SurvivalWave __instance)
+    {
+        if (__instance.m_courseNode?.m_dimension.IsArenaDimension == true)
+            __instance.m_courseNode = _handler?.GoodNode ?? __instance.m_courseNode;
+    }
+
     [HarmonyPatch(typeof(EnemySync), nameof(EnemySync.OnSpawn))]
     [HarmonyPostfix]
     [HarmonyPriority(Priority.High)]
     [HarmonyWrapSafe]
-    private static void Post_OnSpawn(EnemySync __instance)
+    private static void Post_Enemy_OnSpawn(EnemySync __instance)
     {
         var enemy = __instance.m_agent;
         if (!enemy.IsSetup)

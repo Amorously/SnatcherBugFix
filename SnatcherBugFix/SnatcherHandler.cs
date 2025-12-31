@@ -1,4 +1,5 @@
-﻿using Enemies;
+﻿using AIGraph;
+using Enemies;
 using GTFO.API.Extensions;
 using LevelGeneration;
 using Player;
@@ -12,10 +13,12 @@ public class SnatcherHandler : MonoBehaviour
     public PlayerAgent Player = null!;
     public EnemyAgent? Captor;
     public DelayedCallback? UncoverCallback, UnwarpCallback;
+    public AIG_CourseNode? LastNode;
     public eDimensionIndex LastDimension;
     public Vector3 LastPosition;
     private bool _warpFlag;
 
+    public AIG_CourseNode? GoodNode => Captor?.CourseNode ?? LastNode;
     public eDimensionIndex GoodDimension => Captor?.DimensionIndex ?? LastDimension;
     public Vector3 GoodPosition => Captor?.Position ?? LastPosition;
     public bool IsInArenaDim => Player?.Dimension?.IsArenaDimension ?? false;
@@ -50,6 +53,7 @@ public class SnatcherHandler : MonoBehaviour
             return;
         }
 
+        LastNode = Player.CourseNode;
         LastDimension = Player.DimensionIndex;
         LastPosition = Player.Position;
         _warpFlag = false;
