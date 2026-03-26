@@ -1,9 +1,9 @@
 ﻿using AIGraph;
 using Enemies;
+using ExteriorRendering;
 using GTFO.API.Extensions;
 using LevelGeneration;
 using Player;
-using SnatcherBugFix.Utils;
 using UnityEngine;
 
 namespace SnatcherBugFix;
@@ -12,11 +12,11 @@ public class SnatcherHandler : MonoBehaviour
 {
     public PlayerAgent Player = null!;
     public EnemyAgent? Captor;
-    public DelayedCallback? UncoverCallback, UnwarpCallback;
     public AIG_CourseNode? LastNode;
     public eDimensionIndex LastDimension;
     public Vector3 LastPosition;
-    private bool _warpFlag;
+    private float _warpTime;
+    private const float DeadBuffer = 0.5f;
 
     public AIG_CourseNode? GoodNode => Captor?.CourseNode ?? LastNode;
     public eDimensionIndex GoodDimension => Captor?.DimensionIndex ?? LastDimension;
@@ -26,8 +26,6 @@ public class SnatcherHandler : MonoBehaviour
     public void Awake()
     {
         Player = GetComponent<PlayerAgent>();
-        UncoverCallback = new(() => 2.5f, () => UncoverScreen());
-        UnwarpCallback = new(() => 8.0f, () => ArenaUnwarp());
         
         if (!Builder.CurrentFloor.m_dimensions.ToManaged().Any(dim => dim.IsArenaDimension))
         {
@@ -43,71 +41,67 @@ public class SnatcherHandler : MonoBehaviour
         if (GameStateManager.CurrentStateName != eGameStateName.InLevel) return;
         if (Player == null) return;
 
-        if (IsInArenaDim)
+        bool inArenaDim = IsInArenaDim;
+        if (_warpTime > 0 && Clock.Time > _warpTime)
         {
-            if (!_warpFlag)
+            if (inArenaDim)
             {
-                _warpFlag = true;
-                UnwarpCallback?.Start();
+                Player.RequestWarpToSync(GoodDimension, GoodPosition, Player.FPSCamera.CameraRayDir, PlayerAgent.WarpOptions.None);
+                if (Player.Alive)
+                    Player.Locomotion.GrabbedByPouncer.StandUp();
+                FixWarpFX();
+                Player.FPSCamera.PouncerScreenFX.SetCovered(false);
             }
+            else if (Player.FPSCamera.PouncerScreenFX.covered)
+            {
+                Player.FPSCamera.PouncerScreenFX.SetCovered(false);
+            }
+
+            Captor = null;
+            _warpTime = 0;
             return;
         }
 
-        LastNode = Player.CourseNode;
-        LastDimension = Player.DimensionIndex;
-        LastPosition = Player.Position;
-        _warpFlag = false;
+        if (!inArenaDim)
+        {
+            LastNode = Player.CourseNode;
+            LastDimension = Player.DimensionIndex;
+            LastPosition = Player.Position;
+        }
     }
-    
-    public void OnDestroy()
-    {
-        UncoverCallback?.Cancel();
-        UnwarpCallback?.Cancel();
-    }   
 
-    public void OnConsumed(EnemyAgent pouncer)
+    public void OnConsumed(EnemyAgent pouncer, PouncerDataContainer data)
     {
         Logger.Debug($"SnatcherHandler OnConsumed, Enemy {pouncer.GetInstanceID()}");
-        Captor = pouncer;        
-        UncoverCallback?.Start();
-        UnwarpCallback?.Start();
+        Captor = pouncer;
+        var heldData = data.HeldStateData;
+        _warpTime = Clock.Time + data.ConsumeDuration + heldData.HeldStartAnimationDuration + heldData.MaxHeldDuration + heldData.SpitOutStateDuration;
     }
         
-    public void OnSpitOut(EnemyAgent pouncer)
+    public void OnDead(EnemyAgent pouncer)
     {
         if (Captor == null || Captor.GetInstanceID() != pouncer.GetInstanceID()) return;
-        Logger.Debug("SnatcherHandler OnSpitOut (dead)");
-        UncoverCallback?.Stop();
-        UnwarpCallback?.Stop();
+        Logger.Debug("SnatcherHandler OnDead");
         Captor = null;
+        _warpTime = Clock.Time + DeadBuffer;
     }
 
-    public void UncoverScreen()
+    private void FixWarpFX()
     {
-        if (!Player.FPSCamera.PouncerScreenFX.covered) return;
-        else if (!IsInArenaDim)
+        var dimension = GoodNode!.m_dimension;
+        ExteriorCamera.GlobalSwitch = dimension.DimensionData.IsOutside;
+        if ((bool)dimension.DimensionRootTemp.SkyOcclusionVolume)
         {
-            Player.FPSCamera.PouncerScreenFX.SetCovered(false);
-            Logger.Warn("Force uncovering local player's screen");
+            dimension.DimensionRootTemp.SkyOcclusionVolume.Upload();
         }
-        else UncoverCallback?.Start();
-    }
-
-    public void ArenaUnwarp()
-    {
-        if (!IsInArenaDim)
+        if (dimension.DimensionData.IsOutside)
         {
-            _warpFlag = false;
-            return;
-        }        
-        Player.RequestWarpToSync(GoodDimension, GoodPosition, Player.FPSCamera.CameraRayDir, PlayerAgent.WarpOptions.None);
-        Logger.Warn("Force teleporting local player out from arena dimension");
-    }
-
-    public void DelayedCallbackDebug(float uncoverTime, float unwarpTime)
-    {
-        UncoverCallback = new(() => uncoverTime, () => UncoverScreen());
-        UnwarpCallback = new(() => unwarpTime, () => ArenaUnwarp());
-        Logger.Warn("Changed delayed callbacks");
+            Lighting.ReflectionsDirty = true;
+        }
+        if (dimension.IsMainDimension)
+        {
+            Dimension.SetRealitySoundEnvironment();
+        }
+        Player.UpdateSoundScape();
     }
 }
