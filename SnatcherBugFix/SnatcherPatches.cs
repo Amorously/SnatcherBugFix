@@ -1,12 +1,9 @@
-﻿using BepInEx.Unity.IL2CPP.Utils;
-using Enemies;
+﻿using Enemies;
 using GTFO.API;
 using HarmonyLib;
 using Player;
 using SnatcherBugFix.Utils;
 using SNetwork;
-using System.Collections;
-using UnityEngine;
 
 namespace SnatcherBugFix;
 
@@ -50,25 +47,29 @@ internal static class SnatcherPatches // auri ur epic
         if (!enemy.IsSetup)
             return;
         if (enemy.IsArenaDimensionEnemy)
-            enemy.AddOnDeadOnce(() => _handler?.OnSpitOut(enemy)); // force spit out captured player on death
-        if (SNet.IsMaster && enemy.Dimension.IsArenaDimension)
-            enemy.StartCoroutine(DespawnFromArena(enemy)); // host despawn enemies in arena dim
+            enemy.AddOnDeadOnce(() => _handler?.OnDead(enemy)); // force spit out captured player on death
     }
 
-    private static IEnumerator DespawnFromArena(EnemyAgent enemy)
-    {
-        yield return new WaitForSeconds(0.75f);
-        enemy.m_replicator.Despawn();
-    }
-
-    [HarmonyPatch(typeof(PouncerBehaviour), nameof(PouncerBehaviour.RequestConsume))]
     [HarmonyPatch(typeof(PouncerBehaviour), nameof(PouncerBehaviour.OnConsumeRequestReceived))]
     [HarmonyPostfix]
     [HarmonyWrapSafe]
-    private static void Post_Consume(PouncerBehaviour __instance)
+    private static void Post_Consume(PouncerBehaviour __instance, pEB_PouncerTargetInfoPacket data)
     {
-        if (__instance.CapturedPlayer?.IsLocallyOwned == true)
-            _handler?.OnConsumed(__instance.GetComponentInParent<EnemyAgent>());
+        if (!PlayerManager.TryGetPlayerAgent(ref data.PlayerSlot, out var agent)) return;
+
+        if (agent.IsLocallyOwned == true)
+            _handler?.OnConsumed(__instance.m_ai.m_enemyAgent, __instance.Data);
+    }
+
+    [HarmonyPatch(typeof(PouncerBehaviour), nameof(PouncerBehaviour.RequestConsume))]
+    [HarmonyPostfix]
+    [HarmonyWrapSafe]
+    private static void Post_Consume(PouncerBehaviour __instance, int playerSlotIndex)
+    {
+        if (!SNet.IsMaster || !PlayerManager.TryGetPlayerAgent(ref playerSlotIndex, out var agent)) return;
+
+        if (agent.IsLocallyOwned == true)
+            _handler?.OnConsumed(__instance.m_ai.m_enemyAgent, __instance.Data);
     }
 
     [HarmonyPatch(typeof(PouncerScreenFX), nameof(PouncerScreenFX.SetCovered), new Type[] { typeof(bool) })]
@@ -76,15 +77,7 @@ internal static class SnatcherPatches // auri ur epic
     [HarmonyWrapSafe]
     private static void Pre_CoverScreen()
     {
-        FocusStateManager.ChangeState(eFocusState.FPS, true); // force exit menu pages
-    }
-
-    [HarmonyPatch(typeof(PouncerScreenFX), nameof(PouncerScreenFX.SetCovered), new Type[] { typeof(bool) })]
-    [HarmonyPostfix]
-    [HarmonyWrapSafe]
-    private static void Post_CoverScreen(bool value)
-    {
-        if (!value) return;
-        _handler?.UncoverCallback?.Start();
+        if (GameStateManager.CurrentStateName == eGameStateName.InLevel)
+            FocusStateManager.ChangeState(eFocusState.FPS, true); // force exit menu pages
     }
 }
