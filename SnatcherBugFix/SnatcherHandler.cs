@@ -1,7 +1,6 @@
 ﻿using AIGraph;
 using Enemies;
 using ExteriorRendering;
-using GTFO.API.Extensions;
 using LevelGeneration;
 using Player;
 using UnityEngine;
@@ -26,14 +25,7 @@ public class SnatcherHandler : MonoBehaviour
     public void Awake()
     {
         Player = GetComponent<PlayerAgent>();
-        
-        if (!Builder.CurrentFloor.m_dimensions.ToManaged().Any(dim => dim.IsArenaDimension))
-        {
-            Logger.Error("No arena dimension present in level");
-            enabled = false;
-            return;
-        }
-        Logger.Debug("SnatcherHandler is setup and enabled");
+        Logger.Debug("SnatcherHandler is ready");
     }
 
     public void Update()

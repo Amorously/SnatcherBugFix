@@ -1,9 +1,11 @@
 ﻿using Enemies;
 using GTFO.API;
 using HarmonyLib;
+using LevelGeneration;
 using Player;
 using SnatcherBugFix.Utils;
 using SNetwork;
+using UnityEngine;
 
 namespace SnatcherBugFix;
 
@@ -21,17 +23,53 @@ internal static class SnatcherPatches // auri ur epic
         _prepared = true;
     }
 
-    private static void OnEnterLevel()
+    private static void OnEnterLevel() // add LODGroups to hide dimension gameobjects
     {
-        var player = PlayerManager.GetLocalPlayerAgent();
-        _handler = player.gameObject.AddOrGetComponent<SnatcherHandler>();
-        if (!_handler.enabled) _handler = null;
+        bool flag = false;
+        foreach (var dim in Builder.CurrentFloor.m_dimensions)
+        {
+            if (!dim.IsArenaDimension)
+                continue;
+
+            flag |= true;
+            for (int i = 0; i < dim.DimensionLevel.transform.childCount; i++)
+            {
+                Transform child = dim.DimensionLevel.transform.GetChild(i);
+                if (!child.name.Contains("Cube", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                var lodGroup = child.gameObject.AddOrGetComponent<LODGroup>();
+                lodGroup.fadeMode = LODFadeMode.None;
+                var mr = child.GetComponent<MeshRenderer>();
+                if (mr == null) continue;
+                lodGroup.SetLODs(new[]
+                {
+                    new LOD
+                    {
+                        screenRelativeTransitionHeight = 0.70f,
+                        fadeTransitionWidth = 0f,
+                        renderers = new[] { mr }
+                    }
+                });
+                lodGroup.RecalculateBounds();
+            }
+        }
+        _handler = flag ? PlayerManager.GetLocalPlayerAgent().gameObject.GetComponent<SnatcherHandler>() : null;
+    }
+
+    [HarmonyPatch(typeof(PlayerAgent), nameof(PlayerAgent.Setup))]
+    [HarmonyPostfix]
+    [HarmonyWrapSafe]
+    private static void Post_PlayerAgent_Setup(PlayerAgent __instance)
+    {
+        if (__instance.IsLocallyOwned)
+            __instance.gameObject.AddOrGetComponent<SnatcherHandler>();
     }
 
     [HarmonyPatch(typeof(SurvivalWave), nameof(SurvivalWave.OnSpawn))]
     [HarmonyPostfix]
     [HarmonyWrapSafe]
-    private static void Post_Wave_OnSpawn(SurvivalWave __instance)
+    private static void Post_SurvivalWave_OnSpawn(SurvivalWave __instance)
     {
         if (__instance.m_courseNode?.m_dimension.IsArenaDimension == true)
             __instance.m_courseNode = _handler?.GoodNode ?? __instance.m_courseNode;
@@ -41,11 +79,12 @@ internal static class SnatcherPatches // auri ur epic
     [HarmonyPostfix]
     [HarmonyPriority(Priority.High)]
     [HarmonyWrapSafe]
-    private static void Post_Enemy_OnSpawn(EnemySync __instance)
+    private static void Post_EnemySync_OnSpawn(EnemySync __instance)
     {
         var enemy = __instance.m_agent;
         if (!enemy.IsSetup)
             return;
+
         if (enemy.IsArenaDimensionEnemy)
             enemy.AddOnDeadOnce(() => _handler?.OnDead(enemy)); // force spit out captured player on death
     }
@@ -55,9 +94,10 @@ internal static class SnatcherPatches // auri ur epic
     [HarmonyWrapSafe]
     private static void Post_Consume(PouncerBehaviour __instance, pEB_PouncerTargetInfoPacket data)
     {
-        if (!PlayerManager.TryGetPlayerAgent(ref data.PlayerSlot, out var agent)) return;
+        if (!PlayerManager.TryGetPlayerAgent(ref data.PlayerSlot, out var agent)) 
+            return;
 
-        if (agent.IsLocallyOwned == true)
+        if (agent.IsLocallyOwned)
             _handler?.OnConsumed(__instance.m_ai.m_enemyAgent, __instance.Data);
     }
 
@@ -66,9 +106,10 @@ internal static class SnatcherPatches // auri ur epic
     [HarmonyWrapSafe]
     private static void Post_Consume(PouncerBehaviour __instance, int playerSlotIndex)
     {
-        if (!SNet.IsMaster || !PlayerManager.TryGetPlayerAgent(ref playerSlotIndex, out var agent)) return;
+        if (!SNet.IsMaster || !PlayerManager.TryGetPlayerAgent(ref playerSlotIndex, out var agent)) 
+            return;
 
-        if (agent.IsLocallyOwned == true)
+        if (agent.IsLocallyOwned)
             _handler?.OnConsumed(__instance.m_ai.m_enemyAgent, __instance.Data);
     }
 

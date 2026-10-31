@@ -5,15 +5,16 @@ using Il2CppInterop.Runtime.Injection;
 
 namespace SnatcherBugFix;
 
-[BepInPlugin("Amor.SnatcherBugFix", "SnatcherBugFix", "0.5.0")]
+[BepInPlugin("Amor.SnatcherBugFix", "SnatcherBugFix", "0.5.1")]
 [BepInDependency("dev.gtfomodding.gtfo-api", BepInDependency.DependencyFlags.HardDependency)]
 internal sealed class EntryPoint : BasePlugin
 {
     public override void Load()
     {
+        Logger.MLS = Log;
         ClassInjector.RegisterTypeInIl2Cpp<SnatcherHandler>();
         SnatcherNativePatches.Init();
         new Harmony("Amor.SnatcherBugFix").PatchAll();
-        Logger.Info("SnatcherBugFix is done loading!");        
+        Logger.Message("SnatcherBugFix is done loading!");        
     }
 }
